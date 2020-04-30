@@ -207,3 +207,27 @@ def babysnark_prover(U, n_stmt, CRS, precomp, a):
     # print('Bw:', Bw)
     # print('Vw:', Vw)
     return H, Bw, Vw
+
+
+def babysnark_verifier(U, CRS, precomp, a_stmt, pi):
+    """
+    U: the matrix m*n representing the problem equations
+    CRS: the common reference string, babysnark_setup()[0]
+    Precomp: precomputation provided by babysnark_setup()[1]
+    a_stmt: the first part of the solution vecor, part of the statement
+    pi: proof, output of  prover, H, Bw, Vw
+    """
+    (m, n) = U.shape
+    (H, Bw, Vw) = pi
+    assert len(ROOTS) >= m
+    n_stmt = len(a_stmt)
+
+    # parse the CRS
+    taus = CRS[:m+1]
+    gamma = CRS[m+1]
+    gammabeta = CRS[m+2]
+    bUis = CRS[-(n-n_stmt):]
+
+    Uis, T = precomp
+
+    # Compute the Vs and V = Vs + Vw
