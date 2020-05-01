@@ -5,9 +5,9 @@ import numpy as np
 import random
 
 
-def _polydemo():
-    p1 = Poly([1, 2, 3, 4, 5])
-    print(p1)
+# def _polydemo():
+#     p1 = Poly([1, 2, 3, 4, 5])
+#     print(p1)
 
 
 # _polydemo()
@@ -85,8 +85,8 @@ def evaluate_in_exponent(powers_of_tau, poly):
     #     [G*0, G*tau, ..., G*(Tau**m)]
     # poly:
     #    degree m-bound polynomial in coefficient form
-    print("P.degree: " + poly.degree())
-    print("Powers of tau: " + len(powers_of_tau))
+    print("P.degree: ", poly.degree())
+    print("Powers of tau: ", len(powers_of_tau))
     assert poly.degree() + 1 < len(powers_of_tau)
     return sum([powers_of_tau[i] * poly.coefficients[i] for i in
                 range(poly.degree()+1)], G*0)
@@ -115,7 +115,7 @@ def babysnark_setup(U, n_stmt):
     # intrerpolate for points (x,y) where x's are the roots and y's are the
     # values of the k-th row
     # This is public
-    Us = [Poly.interpolate(ROOTS[:y], U[:, k]) for k in range(n)]
+    Us = [Poly.interpolate(ROOTS[:m], U[:, k]) for k in range(n)]
 
     # Trapdoors
     # These are only known to the trusted party that generates the setup
@@ -162,7 +162,7 @@ def babysnark_prover(U, n_stmt, CRS, precomp, a):
 
     # parse the CRS
     taus = CRS[:m+1]
-    bUis = CRS[-n-n_stmt:]
+    bUis = CRS[-(n-n_stmt):]
 
     Uis, T = precomp
 
@@ -172,7 +172,7 @@ def babysnark_prover(U, n_stmt, CRS, precomp, a):
     # 1. Find the polynomial p(x) this is the prover polynomials p = t * h
     # Convert the basis polynomials Us to coefficient form by interpolating
     # This is to make sure we can evaluate with the powers of tau
-    Us = [Poly.interpolate([ROOTS[:m]], Uis[:, k]) for k in range(n)]
+    Us = [Poly.interpolate(ROOTS[:m], U[:,k]) for k in range(n)]
 
     # First compute v
     # thes are the polynomials calculated out of the basis polynomials and the
@@ -218,16 +218,74 @@ def babysnark_verifier(U, CRS, precomp, a_stmt, pi):
     pi: proof, output of  prover, H, Bw, Vw
     """
     (m, n) = U.shape
+    print("     (m,n): ", m, ", ", n)
     (H, Bw, Vw) = pi
+    # print("     H: ", H)
+    print("     Bw: ", Bw)
+    print("     Vw: ", Vw)
     assert len(ROOTS) >= m
     n_stmt = len(a_stmt)
-
+    # print("     n_stmt: ", n_stmt)
     # parse the CRS
     taus = CRS[:m+1]
+    # print("     taus: ", taus)
     gamma = CRS[m+1]
+    print("     gamma: ", gamma)
     gammabeta = CRS[m+2]
+    print("     gammabeta: ", gammabeta)
     bUis = CRS[-(n-n_stmt):]
 
     Uis, T = precomp
 
     # Compute the Vs and V = Vs + Vw
+    # The statement polynomials plus the solution polynomials
+    Vs = sum([Uis[k] * a_stmt[k] for k in range(n_stmt)], G * 0)
+    V = Vs + Vw
+
+    # Check 1
+    print("Check 1- if Prover used polynomials he knows with shift beta ...")
+    pairBwgamma = Bw.pair(gamma)
+    pairVwgammabeta = Vw.pair(gammabeta)
+    print("Pairing Bw and Gamma: ", pairBwgamma)
+    print("Pairing Vw and gammabeta", pairVwgammabeta)
+    assert pairBwgamma == pairVwgammabeta
+
+    # print('GT', GT)
+    # print('V:', V)
+    # print('H.pair(T) * GT:', H.pair(T) * GT)
+    # print('V.pair(V):', V.pair(V))
+    print("Check 2 - provers cofactor polynomial H * target polynomial L ==\
+    P (V*V)...")
+    pairHTGT = H.pair(T) * GT
+    pairVV = V.pair(V)
+    print("Pairing H*T: ", pairHTGT)
+    print("Pairing VV: ", pairVV)
+    assert pairHTGT == pairVV
+
+    return True
+
+
+if __name__ == '__main__':
+    # sample a problem
+    print("Generating a Square span Program instance...")
+    n_stmt = 4
+    m, n = (16, 6)
+    U, a = generate_solved_instance(m, n)
+    a_stmt = a[:n_stmt]
+    print("U: ", repr(U))
+    print("a_stmt: ", a_stmt)
+    print("non-zero in U: ", np.sum(U == Fp(0)))
+    print("MxN: ", m, "*",  n, "=", m * n)
+
+    # setup
+    print("Computing setup...")
+    CRS, precomp = babysnark_setup(U, n_stmt)
+    print("CRS lenght: ", len(CRS))
+
+    # prover
+    print("Proving...")
+    H, Bw, Vw = babysnark_prover(U, n_stmt, CRS, precomp, a)
+
+    print("Verifying...")
+    success = babysnark_verifier(U, CRS, precomp, a_stmt[:n_stmt], (H, Bw, Vw))
+    print("VERIFICATION SUCCESSFUL?", success)
